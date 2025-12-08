@@ -1,9 +1,9 @@
-name: Deploy Hugo site to Server
+name: Deploy to Server
 
 on:
   push:
     branches:
-      - main  # 当推送到 main 分支时触发
+      - main  # 或者你的主分支名
 
 jobs:
   deploy:
@@ -13,28 +13,52 @@ jobs:
       # 1. 检出代码
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          submodules: true  # 如果你的主题是通过 git submodule 添加的
-          fetch-depth: 0    # 获取完整的 git 历史
 
-      # 2. 安装 Hugo
-      - name: Setup Hugo
-        uses: peaceiris/actions-hugo@v2
+      # 2. 设置 Node.js（如果是前端项目）
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          hugo-version: 'latest'  # 或指定版本，如 '0.121.0'
-          extended: true          # 如果你使用 Hugo Extended 版本
+          node-version: '20'
+          cache: 'npm'
 
-      # 3. 构建网站
+      # 3. 安装依赖
+      - name: Install dependencies
+        run: npm ci
+
+      # 4. 构建项目
       - name: Build
-        run: hugo --minify
+        run: npm run build
 
-      # 4. 部署到服务器
+      # 5. 部署到服务器
       - name: Deploy to Server
-        uses: easingthemes/ssh-deploy@main
+        uses: appleboy/scp-action@v0.1.7
         with:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          REMOTE_HOST: ${{ secrets.SERVER_HOST }}
-          REMOTE_USER: ${{ secrets.SERVER_USER }}
-          TARGET: ${{ secrets.SERVER_PATH }}
-          SOURCE: "public/"  # Hugo 生成的静态文件目录
-          ARGS: "-avz --delete"  # rsync 参数：-a 归档模式，-v 详细输出，-z 压缩，--delete 删除目标目录中多余的文件
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          source: "dist/*"  # 构建输出目录
+          target: ${{ secrets.DEPLOY_PATH }}
+          strip_components: 1  # 去掉 dist/ 前缀
+          overwrite: true
+
+      # 6. 重启服务（可选）
+      - name: Restart Service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            # 如果是 Nginx 静态网站，重启 Nginx
+            sudo systemctl reload nginx
+
+            # 如果是 Node.js 应用，重启 PM2
+            # cd ${{ secrets.DEPLOY_PATH }}
+            # pm2 restart app
+
+            # 如果是 Docker 应用，重启容器
+            # cd ${{ secrets.DEPLOY_PATH }}
+            # docker-compose down
+            # docker-compose up -d
