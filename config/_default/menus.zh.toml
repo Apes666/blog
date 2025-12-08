@@ -1,0 +1,23 @@
+############# Chinese navigation ##############
+
+# main menu
+[[main]]
+name = "首页"
+url = "/"
+weight = 1
+
+[[main]]
+name = "关于"
+url = "/about"
+weight = 2
+
+
+[[main]]
+name = "文章"
+url = "/blog"
+weight = 3
+
+[[main]]
+name = "分类"
+url = "/categories"
+weight = 4

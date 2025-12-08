@@ -1,0 +1,40 @@
+name: Deploy Hugo site to Server
+
+on:
+  push:
+    branches:
+      - main  # 当推送到 main 分支时触发
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 检出代码
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true  # 如果你的主题是通过 git submodule 添加的
+          fetch-depth: 0    # 获取完整的 git 历史
+
+      # 2. 安装 Hugo
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v2
+        with:
+          hugo-version: 'latest'  # 或指定版本，如 '0.121.0'
+          extended: true          # 如果你使用 Hugo Extended 版本
+
+      # 3. 构建网站
+      - name: Build
+        run: hugo --minify
+
+      # 4. 部署到服务器
+      - name: Deploy to Server
+        uses: easingthemes/ssh-deploy@main
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST: ${{ secrets.SERVER_HOST }}
+          REMOTE_USER: ${{ secrets.SERVER_USER }}
+          TARGET: ${{ secrets.SERVER_PATH }}
+          SOURCE: "public/"  # Hugo 生成的静态文件目录
+          ARGS: "-avz --delete"  # rsync 参数：-a 归档模式，-v 详细输出，-z 压缩，--delete 删除目标目录中多余的文件
