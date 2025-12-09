@@ -42,7 +42,20 @@ jobs:
         env:
           HUGO_ENV: production
 
-      # 6. 部署到服务器
+      # 6. 清理旧文件
+      - name: Clean old files
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            # 清空目标目录（保留目录本身）
+            rm -rf ${{ secrets.DEPLOY_PATH }}/*
+            echo "旧文件已清理"
+
+      # 7. 部署到服务器
       - name: Deploy to Server via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -54,9 +67,9 @@ jobs:
           target: ${{ secrets.DEPLOY_PATH }}
           strip_components: 1  # 去掉 public/ 前缀
           overwrite: true
-          rm: true  # 删除目标目录中的旧文件
+          rm: false  # 不使用 SCP 的删除功能
 
-      # 7. 设置文件权限并重启服务
+      # 8. 设置文件权限并重启服务
       - name: Set permissions and reload Nginx
         uses: appleboy/ssh-action@v1.0.3
         with:
