@@ -1,64 +1,74 @@
-name: Deploy to Server
+name: Deploy Hugo Site to Server
 
 on:
   push:
     branches:
-      - main  # 或者你的主分支名
+      - main  # 当推送到 main 分支时触发
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 检出代码
+      # 1. 检出代码（包含子模块）
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: recursive  # 如果主题是通过 git submodule 引入的
+          fetch-depth: 0  # 获取完整历史，Hugo 可能需要
 
-      # 2. 设置 Node.js（如果是前端项目）
+      # 2. 设置 Hugo
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: 'latest'
+          extended: true  # 使用 Hugo Extended 版本（支持 SCSS/SASS）
+
+      # 3. 设置 Node.js（用于 Tailwind CSS 等前端工具）
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      # 3. 安装依赖
+      # 4. 安装 Node.js 依赖
       - name: Install dependencies
         run: npm ci
 
-      # 4. 构建项目
-      - name: Build
+      # 5. 构建 Hugo 站点
+      - name: Build Hugo site
         run: npm run build
+        env:
+          HUGO_ENV: production
 
-      # 5. 部署到服务器
-      - name: Deploy to Server
+      # 6. 部署到服务器
+      - name: Deploy to Server via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
-          source: "dist/*"  # 构建输出目录
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          source: "public/*"  # Hugo 默认输出目录
           target: ${{ secrets.DEPLOY_PATH }}
-          strip_components: 1  # 去掉 dist/ 前缀
+          strip_components: 1  # 去掉 public/ 前缀
           overwrite: true
+          rm: true  # 删除目标目录中的旧文件
 
-      # 6. 重启服务（可选）
-      - name: Restart Service
+      # 7. 设置文件权限并重启服务
+      - name: Set permissions and reload Nginx
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
           script: |
-            # 如果是 Nginx 静态网站，重启 Nginx
+            # 设置正确的文件权限
+            chmod -R 755 ${{ secrets.DEPLOY_PATH }}
+
+            # 重启 Nginx
             sudo systemctl reload nginx
 
-            # 如果是 Node.js 应用，重启 PM2
-            # cd ${{ secrets.DEPLOY_PATH }}
-            # pm2 restart app
-
-            # 如果是 Docker 应用，重启容器
-            # cd ${{ secrets.DEPLOY_PATH }}
-            # docker-compose down
-            # docker-compose up -d
+            echo "部署完成！站点已更新。"
